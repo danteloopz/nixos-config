@@ -14,63 +14,65 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # AMD GPU
+  # Use latest kernel
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+
+  # Networking
+  networking.hostName = "nixos"; # Define your hostname.
+  networking.networkmanager.enable = true;
+
+  # Hardware
+  #hardware.bluetooth.enable = true;
+  hardware.cpu.amd.updateMicrocode = true;
   hardware.graphics = {
     enable = true;
     enable32Bit = true;
   };
-
-  networking.hostName = "nixos"; # Define your hostname.
-  
-  # Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
-
-  # Enable networking
-  networking.networkmanager.enable = true;
-
+ 
   # Set your time zone.
   time.timeZone = "Europe/Warsaw";
 
   # Select internationalisation properties.
-  i18n.defaultLocale = "en_GB.UTF-8";
+  i18n.defaultLocale = "en_US.UTF-8";
 
   i18n.extraLocaleSettings = {
-    LC_ADDRESS = "pl_PL.UTF-8";
-    LC_IDENTIFICATION = "pl_PL.UTF-8";
-    LC_MEASUREMENT = "pl_PL.UTF-8";
-    LC_MONETARY = "pl_PL.UTF-8";
-    LC_NAME = "pl_PL.UTF-8";
-    LC_NUMERIC = "pl_PL.UTF-8";
-    LC_PAPER = "pl_PL.UTF-8";
-    LC_TELEPHONE = "pl_PL.UTF-8";
-    LC_TIME = "pl_PL.UTF-8";
+    LC_ADDRESS = "en_US.UTF-8";
+    LC_IDENTIFICATION = "en_US.UTF-8";
+    LC_MEASUREMENT = "en_US.UTF-8";
+    LC_MONETARY = "en_US.UTF-8";
+    LC_NAME = "en_US.UTF-8";
+    LC_NUMERIC = "en_US.UTF-8";
+    LC_PAPER = "en_US.UTF-8";
+    LC_TELEPHONE = "en_US.UTF-8";
+    LC_TIME = "en_US.UTF-8";
   };
-
+  
   # Configure keymap in X11
-  services.xserver = {
-    xkb = {
+  services.xserver.xkb = {
       layout = "pl";
-      #variant = "pl";
-    };
+      variant = "";
   };
 
   # Configure console keymap
   console.keyMap = "pl2";
 
-  
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.dante = {
     isNormalUser = true;
     description = "dante";
     extraGroups = [ "networkmanager" "wheel" ];
-    packages = with pkgs; [];
+    shell = pkgs.zsh;
   };
-
-
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
+
+  # Joypixels licence
+  nixpkgs.config.allowUnfreePredicate = pkg:
+  builtins.elem(lib.getName pkg) [
+    "joypixels"
+  ];
+  nixpkgs.config.joypixels.acceptLicense = true;
   
   # Fonts
   fonts.packages = with pkgs; [
@@ -90,12 +92,6 @@
     fira-code 
     fira-code-symbols 
   ];
-
-  nixpkgs.config.allowUnfreePredicate = pkg:
-  builtins.elem(lib.getName pkg) [
-    "joypixels"
-  ];
-  nixpkgs.config.joypixels.acceptLicense = true;
   
   # Hyprland installation
   programs.hyprland = {
@@ -113,6 +109,7 @@
   programs.firefox.enable = true;
   programs.waybar.enable = true;
   programs.htop.enable = true;
+  programs.zsh.enable = true;
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
@@ -134,15 +131,10 @@
      # Hyprland utilities
      hyprshot # Screenshots on Hyprland
      swww # Wallpapers
+     gnat15 # cpp utils
+     gdb # cpp debugger
+     obsidian #  Notes
   ];
-
-  # Some programs need SUID wrappers, can be configured further or are
-  # started in user sessions.
-  # programs.mtr.enable = true;
-  # programs.gnupg.agent = {
-  #   enable = true;
-  #   enableSSHSupport = true;
-  # };
 
   # List services that you want to enable:
 
@@ -150,15 +142,10 @@
   security.rtkit.enable = true;
   services.pipewire = {
     enable = true;
+    wireplumber.enable = true;
     alsa.enable = true;
     alsa.support32Bit = true;
     pulse.enable = true;
-    # If you want to use JACK applications, uncomment this
-    #jack.enable = true;
-
-    # use the example session manager (no others are packaged yet so this is enabled by default,
-    # no need to redefine it in your config for now)
-    #media-session.enable = true;
   };
 
   # Virtualization
@@ -169,6 +156,19 @@
   virtualisation.virtualbox.host.enableHardening = false;
   #virtualisation.virtualbox.host.enableExtensionPack = true;
 
+  # Login Manager
+  services.greetd = {
+    enable = true;
+    settings = rec {
+      initial_session = {
+        command = "${pkgs.hyprland}/bin/hyprland";
+        user = "dante";
+      };
+      default_session = initial_session;
+    };
+  };
+
+
   # Enable the OpenSSH daemon.
   services.openssh.enable = true;
 
@@ -177,18 +177,15 @@
     openDefaultPorts = true; # Open ports in the firewall for Syncthing. (NOTE: this will not open syncthing gui port)
   };
 
-  # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
-  # networking.firewall.allowedUDPPorts = [ ... ];
-  # Or disable the firewall altogether.
-  # networking.firewall.enable = false;
 
-  # This value determines the NixOS release from which the default
-  # settings for stateful data, like file locations and database versions
-  # on your system were taken. It‘s perfectly fine and recommended to leave
-  # this value at the release version of the first install of this system.
-  # Before changing this value read the documentation for this option
-  # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  system.stateVersion = "25.11"; # Did you read the comment?
+  # Nix settings
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 7d";
+  };
+  nix.settings.auto-optimise-store = true;
+
+  system.stateVersion = "25.11";
 
 }
