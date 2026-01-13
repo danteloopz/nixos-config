@@ -10,16 +10,20 @@
       ./hardware-configuration.nix
     ];
 
+  # Set a limit on the number of generations to include in boot
+  boot.loader.systemd-boot.configurationLimit = 20;
+
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.kernelParams = [ "kvm.enable_virt_at_load=0" ];
 
   # Use latest kernel
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   # Networking
-  networking.hostName = "nixos"; # Define your hostname.
   networking.networkmanager.enable = true;
+  networking.hostName = "nixos"; # Define your hostname.
 
   # Hardware
   #hardware.bluetooth.enable = true;
@@ -108,6 +112,7 @@
 
   programs.firefox.enable = true;
   programs.waybar.enable = true;
+  programs.hyprlock.enable = true;
   programs.htop.enable = true;
   programs.zsh.enable = true;
 
@@ -121,19 +126,22 @@
      rofi # App launcher
      yazi # File manager
      mako # Notificaitons
+     wlogout # Logout Manager
      hyprpolkitagent # Authentication agent for hyprland
      stow # Manage dotfiles
      vesktop # Better discord
      signal-desktop # Encrypted messenger
      spotify # Music
      pavucontrol # Audio manager
-
-     # Hyprland utilities
      hyprshot # Screenshots on Hyprland
+     nwg-look # Cursors and looks
      swww # Wallpapers
      gnat15 # cpp utils
      gdb # cpp debugger
      obsidian #  Notes
+     libreoffice-qt-fresh # Office suite
+     gimp2-with-plugins # Image editing program
+     bibata-cursors # Cursors
   ];
 
   # List services that you want to enable:
@@ -170,21 +178,35 @@
 
 
   # Enable the OpenSSH daemon.
-  services.openssh.enable = true;
+  #services.openssh.enable = true;
 
   services.syncthing = {
     enable = true;
-    openDefaultPorts = true; # Open ports in the firewall for Syncthing. (NOTE: this will not open syncthing gui port)
+    openDefaultPorts = true; 
+    user = "dante";
+    configDir = "/home/dante/.config/syncthing";
   };
 
+  # Printing
+  services.printing.enable = true;
 
   # Nix settings
   nix.gc = {
     automatic = true;
     dates = "weekly";
-    options = "--delete-older-than 7d";
+    options = "--delete-older-than 30d";
   };
   nix.settings.auto-optimise-store = true;
+
+  # Enable auto-upgrades.
+  system.autoUpgrade = {
+    enable = true;
+    # Run daily
+    dates = "daily";
+    # Build the new config and make it the default, but don't switch yet.  This will be picked up on reboot.  This helps
+    # prevent issues with OpenSnitch configs not well matching the state of the system.
+    operation = "boot";
+  };
 
   system.stateVersion = "25.11";
 
