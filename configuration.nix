@@ -6,98 +6,73 @@
 
 {
   imports =
-    [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
-    ];
+    [ ./hardware-configuration.nix ];
 
-  # Set a limit on the number of generations to include in boot
-  boot.loader.systemd-boot.configurationLimit = 20;
-
-  # Bootloader.
-  boot.loader.systemd-boot.enable = true;
+  # --- BOOT & KERNEL ---
+  boot.loader.systemd-boot = {
+    enable = true;
+    configurationLimit = 20; # Set a limit on the number of generations to include in boot
+  };
   boot.loader.efi.canTouchEfiVariables = true;
   boot.kernelParams = [ "kvm.enable_virt_at_load=0" ];
+  boot.kernelPackages = pkgs.linuxPackages_latest; # Use latest kernel
 
-  # Use latest kernel
-  boot.kernelPackages = pkgs.linuxPackages_latest;
-
-  # Networking
+  # --- NETWORKING ---
+  networking.hostName = "nixos"; 
   networking.networkmanager.enable = true;
-  networking.hostName = "nixos"; # Define your hostname.
 
-  # Hardware
-  #hardware.bluetooth.enable = true;
+  # --- HARDWARE & GRAPHICS ---
   hardware.cpu.amd.updateMicrocode = true;
   hardware.graphics = {
     enable = true;
     enable32Bit = true;
   };
- 
-  # Set your time zone.
+
+
+  # --- LOCALIZATION ---
   time.timeZone = "Europe/Warsaw";
-
-  # Select internationalisation properties.
   i18n.defaultLocale = "en_US.UTF-8";
-
-  i18n.extraLocaleSettings = {
-    LC_ADDRESS = "en_US.UTF-8";
-    LC_IDENTIFICATION = "en_US.UTF-8";
-    LC_MEASUREMENT = "en_US.UTF-8";
-    LC_MONETARY = "en_US.UTF-8";
-    LC_NAME = "en_US.UTF-8";
-    LC_NUMERIC = "en_US.UTF-8";
-    LC_PAPER = "en_US.UTF-8";
-    LC_TELEPHONE = "en_US.UTF-8";
-    LC_TIME = "en_US.UTF-8";
-  };
-  
-  # Configure keymap in X11
+  console.keyMap = "pl2";
   services.xserver.xkb = {
       layout = "pl";
       variant = "";
   };
 
-  # Configure console keymap
-  console.keyMap = "pl2";
+  #i18n.extraLocaleSettings = {
+  #  LC_ADDRESS = "en_US.UTF-8";
+  #  LC_IDENTIFICATION = "en_US.UTF-8";
+  #  LC_MEASUREMENT = "en_US.UTF-8";
+  #  LC_MONETARY = "en_US.UTF-8";
+  #  LC_NAME = "en_US.UTF-8";
+  #  LC_NUMERIC = "en_US.UTF-8";
+  #  LC_PAPER = "en_US.UTF-8";
+  #  LC_TELEPHONE = "en_US.UTF-8";
+  #  LC_TIME = "en_US.UTF-8";
+  #}; TODO
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
+  # --- USER ACCOUNT ---
   users.users.dante = {
     isNormalUser = true;
     description = "dante";
-    extraGroups = [ "networkmanager" "wheel" ];
+    extraGroups = [ "networkmanager" "wheel" "vboxusers"];
     shell = pkgs.zsh;
   };
 
-  # Allow unfree packages
-  nixpkgs.config.allowUnfree = true;
+  # --- DISKS / AUTOMOUNT --- 
 
-  # Joypixels licence
-  nixpkgs.config.allowUnfreePredicate = pkg:
-  builtins.elem(lib.getName pkg) [
-    "joypixels"
+  fileSystems."/mnt/usb" = {
+  device = "/dev/disk/by-uuid/6A72-9D94";
+  fsType = "exfat";
+  options = [
+    "defaults"
+    "noatime"
+    "x-systemd.automount"
+    "x-systemd.device-timeout=5"
+    "noauto"
   ];
-  nixpkgs.config.joypixels.acceptLicense = true;
-  
-  # Fonts
-  fonts.packages = with pkgs; [
-    noto-fonts 
-    noto-fonts-cjk-sans
-    noto-fonts-color-emoji
-    font-awesome 
-    joypixels
-    lato
-    liberation_ttf
-    open-sans
-    roboto
-    ubuntu-classic
-    jetbrains-mono 
-    monaspace 
-    anonymousPro 
-    fira-code 
-    fira-code-symbols 
-  ];
-  
-  # Hyprland installation
+  };
+
+  # --- HYPRLAND & DESKTOP ---
   programs.hyprland = {
     enable = true;
     withUWSM = true; # recommended for most users
@@ -110,14 +85,61 @@
     extraPortals = with pkgs; [ xdg-desktop-portal-hyprland ];
   };
 
+  # --- SERVICES ---  
+
+  # Login Manager
+  services.greetd = {
+    enable = true;
+    settings = rec {
+      initial_session = {
+        command = "${pkgs.hyprland}/bin/hyprland";
+        user = "dante";
+      };
+      default_session = initial_session;
+    };
+  };
+
+  # Enable sound with pipewire.
+  security.rtkit.enable = true;
+  services.pipewire = {
+    enable = true;
+    wireplumber.enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true;
+  };
+
+  # Syncthing
+  services.syncthing = {
+    enable = true;
+    openDefaultPorts = true; 
+    user = "dante";
+    configDir = "/home/dante/.config/syncthing";
+  };
+
+  services.printing.enable = true; # Printing
+
+  services.udisks2.enable = true; # Needed to connect usb in calibre
+
+  # Virtualization
+  virtualisation.virtualbox = {
+    host.enable = true;
+    guest.enable = true;
+    guest.dragAndDrop = true;
+    host.enableHardening = true;                                            
+    host.enableExtensionPack = true;                                         
+  };
+  
+  # --- PACKAGES ---
+  nixpkgs.config.allowUnfree = true;
+
   programs.firefox.enable = true;
   programs.waybar.enable = true;
   programs.hyprlock.enable = true;
   programs.htop.enable = true;
   programs.zsh.enable = true;
+  programs.ssh.startAgent = true;
 
-  # List packages installed in system profile. To search, run:
-  # $ nix search wget
   environment.systemPackages = with pkgs; [
      neovim # Text editor
      keepassxc # Password manager
@@ -142,54 +164,39 @@
      libreoffice-qt-fresh # Office suite
      gimp2-with-plugins # Image editing program
      bibata-cursors # Cursors
+     calibre # Ebooks
+     p7zip # 7z
+     unzip
   ];
 
-  # List services that you want to enable:
 
-  # Enable sound with pipewire.
-  security.rtkit.enable = true;
-  services.pipewire = {
-    enable = true;
-    wireplumber.enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
-  };
+  # --- FONTS ---
 
-  # Virtualization
-  virtualisation.virtualbox.host.enable = true;
-  virtualisation.virtualbox.guest.enable = true;
-  virtualisation.virtualbox.guest.dragAndDrop = true;
-  users.extraGroups.vboxusers.members = [ "dante" ];
-  virtualisation.virtualbox.host.enableHardening = false;
-  #virtualisation.virtualbox.host.enableExtensionPack = true;
-
-  # Login Manager
-  services.greetd = {
-    enable = true;
-    settings = rec {
-      initial_session = {
-        command = "${pkgs.hyprland}/bin/hyprland";
-        user = "dante";
-      };
-      default_session = initial_session;
-    };
-  };
-
-
-  # Enable the OpenSSH daemon.
-  #services.openssh.enable = true;
-
-  services.syncthing = {
-    enable = true;
-    openDefaultPorts = true; 
-    user = "dante";
-    configDir = "/home/dante/.config/syncthing";
-  };
-
-  # Printing
-  services.printing.enable = true;
-
+  # Joypixels licence
+  nixpkgs.config.allowUnfreePredicate = pkg:
+  builtins.elem(lib.getName pkg) [
+    "joypixels"
+  ];
+  nixpkgs.config.joypixels.acceptLicense = true;
+  
+  fonts.packages = with pkgs; [
+    noto-fonts 
+    noto-fonts-cjk-sans
+    noto-fonts-color-emoji
+    font-awesome 
+    joypixels
+    lato
+    liberation_ttf
+    open-sans
+    roboto
+    ubuntu-classic
+    jetbrains-mono 
+    monaspace 
+    anonymousPro 
+    fira-code 
+    fira-code-symbols 
+  ];
+  
   # Nix settings
   nix.gc = {
     automatic = true;
