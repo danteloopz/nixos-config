@@ -38,23 +38,12 @@
       variant = "";
   };
 
-  #i18n.extraLocaleSettings = {
-  #  LC_ADDRESS = "en_US.UTF-8";
-  #  LC_IDENTIFICATION = "en_US.UTF-8";
-  #  LC_MEASUREMENT = "en_US.UTF-8";
-  #  LC_MONETARY = "en_US.UTF-8";
-  #  LC_NAME = "en_US.UTF-8";
-  #  LC_NUMERIC = "en_US.UTF-8";
-  #  LC_PAPER = "en_US.UTF-8";
-  #  LC_TELEPHONE = "en_US.UTF-8";
-  #  LC_TIME = "en_US.UTF-8";
-  #}; TODO
-
   # --- USER ACCOUNT ---
   users.users.dante = {
     isNormalUser = true;
     description = "dante";
-    extraGroups = [ "networkmanager" "wheel" "vboxusers"];
+    extraGroups = [ "networkmanager" "wheel" "docker" "libvirtd" ];
+
     shell = pkgs.zsh;
   };
 
@@ -121,14 +110,6 @@
 
   services.udisks2.enable = true; # Needed to connect usb in calibre
 
-  # Virtualization
-  virtualisation.virtualbox = {
-    host.enable = true;
-    guest.enable = true;
-    guest.dragAndDrop = true;
-    host.enableHardening = true;                                            
-    host.enableExtensionPack = true;                                         
-  };
   
   # --- PACKAGES ---
   nixpkgs.config.allowUnfree = true;
@@ -139,6 +120,12 @@
   programs.htop.enable = true;
   programs.zsh.enable = true;
   programs.ssh.startAgent = true;
+  programs.virt-manager.enable = true; 
+
+  # Virtualization
+  virtualisation.libvirtd.enable = true;
+  virtualisation.spiceUSBRedirection.enable = true;
+
 
   environment.systemPackages = with pkgs; [
      neovim # Text editor
@@ -166,7 +153,7 @@
      bibata-cursors # Cursors
      calibre # Ebooks
      p7zip # 7z
-     unzip
+     unzip # unzip command
   ];
 
 
