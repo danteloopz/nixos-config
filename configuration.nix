@@ -14,7 +14,7 @@
     configurationLimit = 20; # Set a limit on the number of generations to include in boot
   };
   boot.loader.efi.canTouchEfiVariables = true;
-  boot.kernelParams = [ "kvm.enable_virt_at_load=0" ];
+  #boot.kernelParams = [ "kvm.enable_virt_at_load=0" ];
   boot.kernelPackages = pkgs.linuxPackages_latest; # Use latest kernel
 
   # --- NETWORKING ---
@@ -42,7 +42,7 @@
   users.users.dante = {
     isNormalUser = true;
     description = "dante";
-    extraGroups = [ "networkmanager" "wheel" "docker" "libvirtd" ];
+    extraGroups = [ "networkmanager" "wheel" "libvirtd"];
 
     shell = pkgs.zsh;
   };
@@ -77,15 +77,10 @@
   # --- SERVICES ---  
 
   # Login Manager
+
   services.greetd = {
-    enable = true;
-    settings = rec {
-      initial_session = {
-        command = "${pkgs.hyprland}/bin/hyprland";
-        user = "dante";
-      };
-      default_session = initial_session;
-    };
+  enable = true;
+  settings.default_session.command = "${pkgs.tuigreet}/bin/tuigreet --xsessions ${config.services.displayManager.sessionData.desktops}/share/xsessions --sessions ${config.services.displayManager.sessionData.desktops}/share/wayland-sessions --remember --remember-user-session --user-menu --user-menu-min-uid 1000 --asterisks --power-shutdown 'shutdown -P now' --power-reboot 'shutdown -r now'";
   };
 
   # Enable sound with pipewire.
@@ -154,7 +149,17 @@
      calibre # Ebooks
      p7zip # 7z
      unzip # unzip command
+     ffmpeg # converter
   ];
+
+  networking.extraHosts = ''
+    127.0.0.1 chatgpt.com
+    127.0.0.1 youtube.com
+    127.0.0.1 www.youtube.com
+    127.0.0.1 m.youtube.com
+    127.0.0.1 youtu.be
+    127.0.0.1 lmarena.ai
+  '';
 
 
   # --- FONTS ---
