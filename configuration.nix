@@ -15,7 +15,8 @@
   };
   boot.loader.efi.canTouchEfiVariables = true;
   #boot.kernelParams = [ "kvm.enable_virt_at_load=0" ];
-  boot.kernelPackages = pkgs.linuxPackages_latest; # Use latest kernel
+  # boot.kernelPackages = pkgs.linuxPackages_latest; # Use bleeding-edge packages
+  boot.kernelPackages = pkgs.linuxPackages;
 
   # --- NETWORKING ---
   networking.hostName = "nixos"; 
@@ -42,8 +43,7 @@
   users.users.dante = {
     isNormalUser = true;
     description = "dante";
-    extraGroups = [ "networkmanager" "wheel" "libvirtd"];
-
+    extraGroups = [ "networkmanager" "wheel" "vboxusers" "kvm" ];
     shell = pkgs.zsh;
   };
 
@@ -115,11 +115,18 @@
   programs.htop.enable = true;
   programs.zsh.enable = true;
   programs.ssh.startAgent = true;
-  programs.virt-manager.enable = true; 
+  #programs.virt-manager.enable = true; 
 
   # Virtualization
-  virtualisation.libvirtd.enable = true;
-  virtualisation.spiceUSBRedirection.enable = true;
+  virtualisation.virtualbox.host = {
+    enable = true;
+    #enableExtensionPack = true;
+    #enableKvm = true;
+    #addNetworkInterface = false;
+  };
+
+  #virtualisation.libvirtd.enable = true;
+  #virtualisation.spiceUSBRedirection.enable = true;
 
 
   environment.systemPackages = with pkgs; [
@@ -150,12 +157,12 @@
      p7zip # 7z
      unzip # unzip command
      ffmpeg # converter
+     vlc # Video and audio player
+     lmstudio
   ];
 
   networking.extraHosts = ''
     127.0.0.1 chatgpt.com
-    127.0.0.1 youtube.com
-    127.0.0.1 www.youtube.com
     127.0.0.1 m.youtube.com
     127.0.0.1 youtu.be
     127.0.0.1 lmarena.ai
