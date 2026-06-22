@@ -15,12 +15,14 @@
   };
   boot.loader.efi.canTouchEfiVariables = true;
   #boot.kernelParams = [ "kvm.enable_virt_at_load=0" ];
-  # boot.kernelPackages = pkgs.linuxPackages_latest; # Use bleeding-edge packages
+  #boot.kernelPackages = pkgs.linuxPackages_latest; # Use bleeding-edge packages
   boot.kernelPackages = pkgs.linuxPackages;
 
   # --- NETWORKING ---
   networking.hostName = "nixos"; 
   networking.networkmanager.enable = true;
+  networking.nameservers = [ "192.168.0.73" ];
+  networking.networkmanager.dns = "none";
 
   # --- HARDWARE & GRAPHICS ---
   hardware.cpu.amd.updateMicrocode = true;
@@ -71,7 +73,12 @@
   # Screensharing
   xdg.portal = {
     enable = true;
-    extraPortals = with pkgs; [ xdg-desktop-portal-hyprland ];
+    xdgOpenUsePortal = true;
+    config = {
+      common.default = ["gtk"];
+      hyprland.default = ["gtk" "hyprland"];
+    };
+    extraPortals = with pkgs; [ xdg-desktop-portal-hyprland xdg-desktop-portal-gtk ];
   };
 
   # --- SERVICES ---  
@@ -140,13 +147,11 @@
      wlogout # Logout Manager
      hyprpolkitagent # Authentication agent for hyprland
      stow # Manage dotfiles
-     vesktop # Better discord
      signal-desktop # Encrypted messenger
-     spotify # Music
      pavucontrol # Audio manager
      hyprshot # Screenshots on Hyprland
      nwg-look # Cursors and looks
-     swww # Wallpapers
+     awww # Wallpapers
      gnat15 # cpp utils
      gdb # cpp debugger
      obsidian #  Notes
@@ -159,15 +164,8 @@
      ffmpeg # converter
      vlc # Video and audio player
      lmstudio
+     discord-ptb
   ];
-
-  networking.extraHosts = ''
-    127.0.0.1 chatgpt.com
-    127.0.0.1 m.youtube.com
-    127.0.0.1 youtu.be
-    127.0.0.1 lmarena.ai
-  '';
-
 
   # --- FONTS ---
 
