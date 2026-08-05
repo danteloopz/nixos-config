@@ -21,8 +21,14 @@
   # --- NETWORKING ---
   networking.hostName = "nixos"; 
   networking.networkmanager.enable = true;
-  networking.nameservers = [ "192.168.0.73" ];
-  networking.networkmanager.dns = "none";
+  networking.extraHosts = ''
+  0.0.0.0 youtube.com
+  0.0.0.0 www.youtube.com
+  0.0.0.0 m.youtube.com
+  0.0.0.0 youtu.be
+  '';
+  #networking.nameservers = [ "192.168.0.73" ];
+  #networking.networkmanager.dns = "none";
 
   # --- HARDWARE & GRAPHICS ---
   hardware.cpu.amd.updateMicrocode = true;
@@ -122,7 +128,7 @@
   programs.htop.enable = true;
   programs.zsh.enable = true;
   programs.ssh.startAgent = true;
-  #programs.virt-manager.enable = true; 
+  programs.obs-studio.enable = true;
 
   # Virtualization
   virtualisation.virtualbox.host = {
@@ -131,10 +137,6 @@
     #enableKvm = true;
     #addNetworkInterface = false;
   };
-
-  #virtualisation.libvirtd.enable = true;
-  #virtualisation.spiceUSBRedirection.enable = true;
-
 
   environment.systemPackages = with pkgs; [
      neovim # Text editor
@@ -163,8 +165,10 @@
      unzip # unzip command
      ffmpeg # converter
      vlc # Video and audio player
-     lmstudio
-     discord-ptb
+     hyprsunset
+     exiftool
+     qbittorrent
+     unrar
   ];
 
   # --- FONTS ---
