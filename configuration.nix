@@ -114,7 +114,13 @@
     configDir = "/home/dante/.config/syncthing";
   };
 
-  services.printing.enable = true; # Printing
+  # Printing and drivers
+  services.printing.enable = true;
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    openFirewall = true; # Allows discovery through the firewall
+  };
 
   services.udisks2.enable = true; # Needed to connect usb in calibre
 
@@ -162,13 +168,13 @@
      bibata-cursors # Cursors
      calibre # Ebooks
      p7zip # 7z
-     unzip # unzip command
      ffmpeg # converter
      vlc # Video and audio player
      hyprsunset
      exiftool
      qbittorrent
-     unrar
+     wl-clipboard
+     cliphist
   ];
 
   # --- FONTS ---
@@ -197,6 +203,11 @@
     fira-code 
     fira-code-symbols 
   ];
+
+  fonts.fontconfig = {
+    enable = true;
+    defaultFonts.monospace = [ "JetBrainsMono Nerd Font Mono" ];
+  };
   
   # Nix settings
   nix.gc = {
