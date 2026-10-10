@@ -21,14 +21,14 @@
   # --- NETWORKING ---
   networking.hostName = "nixos"; 
   networking.networkmanager.enable = true;
-  networking.extraHosts = ''
-  0.0.0.0 youtube.com
-  0.0.0.0 www.youtube.com
-  0.0.0.0 m.youtube.com
-  0.0.0.0 youtu.be
-  '';
-  #networking.nameservers = [ "192.168.0.73" ];
-  #networking.networkmanager.dns = "none";
+  #networking.extraHosts = ''
+  #0.0.0.0 youtube.com
+  #0.0.0.0 www.youtube.com
+  #0.0.0.0 m.youtube.com
+  #0.0.0.0 youtu.be
+  #0.0.0.0 twitch.tv
+  #0.0.0.0 www.twitch.tv
+  #'';
 
   # --- HARDWARE & GRAPHICS ---
   hardware.cpu.amd.updateMicrocode = true;
@@ -40,11 +40,15 @@
 
   # --- LOCALIZATION ---
   time.timeZone = "Europe/Warsaw";
-  i18n.defaultLocale = "en_US.UTF-8";
+  i18n = {
+  	defaultLocale = "en_US.UTF-8";
+  };
+
   console.keyMap = "pl2";
   services.xserver.xkb = {
       layout = "pl";
       variant = "";
+      options = "caps:escape";
   };
 
   # --- USER ACCOUNT ---
@@ -76,12 +80,16 @@
     xwayland.enable = true; # Xwayland can be disabled.
   };
 
-  # Screensharing
+
+  # Screensharing & File Associations
   xdg.portal = {
     enable = true;
-    xdgOpenUsePortal = true;
+    xdgOpenUsePortal = false; # Set to false to prevent browser file-picker crashes
     config = {
-      common.default = ["gtk"];
+      common = {
+        default = ["gtk"];
+        "org.freedesktop.impl.portal.FileChooser" = [ "gtk" ]; # Fixes folder opening issues
+      };
       hyprland.default = ["gtk" "hyprland"];
     };
     extraPortals = with pkgs; [ xdg-desktop-portal-hyprland xdg-desktop-portal-gtk ];
@@ -135,6 +143,7 @@
   programs.zsh.enable = true;
   programs.ssh.startAgent = true;
   programs.obs-studio.enable = true;
+  programs.winbox.enable = true;
 
   # Virtualization
   virtualisation.virtualbox.host = {
@@ -175,14 +184,45 @@
      qbittorrent
      wl-clipboard
      cliphist
+     lmstudio
+     llama-cpp-rocm
+     python313Packages.huggingface-hub
+     qt5.qtwayland
+     qt6.qtwayland
+     vscodium
+     nodejs
   ];
 
-  # --- FONTS ---
+  xdg.mime = {
+    enable = true;
+    defaultApplications = {
+      "x-scheme-handler/sgnl" = [ "signal.desktop" ];
+      "x-scheme-handler/signalcaptcha" = [ "signal.desktop" ];
+      "x-scheme-handler/discord" = [ "legcord.desktop" ];
+      "text/html" = [ "firefox.desktop" ];
+      "x-scheme-handler/http" = [ "firefox.desktop" ];
+      "x-scheme-handler/https" = [ "firefox.desktop" ];
+      "x-scheme-handler/about" = [ "firefox.desktop" ];
+      "x-scheme-handler/unknown" = [ "firefox.desktop" ];
+      "application/lrf" = [ "calibre-lrfviewer.desktop" ];
+      "application/pdf" = [ "firefox.desktop" ];
+      "image/png" = [ "firefox.desktop" ];
+      "image/jpeg" = [ "firefox.desktop" ];
+      "image/gif" = [ "firefox.desktop" ];
+      "image/webp" = [ "firefox.desktop" ];
+      "image/bmp" = [ "firefox.desktop" ];
+      "inode/directory" = [ "yazi.desktop" ];
+      "x-scheme-handler/terminal" = [ "kitty.desktop" ];
+    };
+  };
+
+   # --- FONTS ---
 
   # Joypixels licence
   nixpkgs.config.allowUnfreePredicate = pkg:
   builtins.elem(lib.getName pkg) [
     "joypixels"
+    "corefonts"
   ];
   nixpkgs.config.joypixels.acceptLicense = true;
   
@@ -202,6 +242,7 @@
     anonymousPro 
     fira-code 
     fira-code-symbols 
+    corefonts
   ];
 
   fonts.fontconfig = {
