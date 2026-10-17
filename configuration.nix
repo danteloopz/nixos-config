@@ -1,110 +1,243 @@
-# Edit this configuration file to define what should be installed on
-# your system.  Help is available in the configuration.nix(5) man page
-# and in the NixOS manual (accessible by running ‘nixos-help’).
+# NixOS configuration for host "nixos" (user: dante)
+# Help: configuration.nix(5), `nixos-help`
+#
+# Layout of this file:
+#   1. Local variables
+#   2. Imports
+#   3. Nix & nixpkgs
+#   4. Boot
+#   5. Hardware
+#   6. Networking
+#   7. Localization
+#   8. Users
+#   9. Disks
+#  10. Desktop (Hyprland, login, portals, default apps, fonts)
+#  11. Audio
+#  12. Services (sync, printing, discovery)
+#  13. Virtualization
+#  14. Local LLM (llama.cpp)
+#  15. Programs
+#  16. System packages
+#  17. Updates & state version
 
 { config, pkgs, lib, ... }:
 
-{
-  imports =
-    [ ./hardware-configuration.nix ];
+let
+  # --- 1. LOCAL VARIABLES ---
 
-  # --- BOOT & KERNEL ---
+  # Desktop entry that opens directories in yazi inside foot.
+  # The stock yazi.desktop has Terminal=true, which GIO/portals can't launch
+  # with foot, so "Open in folder" from Firefox silently did nothing.
+  yaziFoot = pkgs.makeDesktopItem {
+    name = "yazi-foot";
+    desktopName = "Yazi (foot)";
+    exec = "${pkgs.foot}/bin/foot -e ${pkgs.yazi}/bin/yazi %f";
+    terminal = false;
+    mimeTypes = [ "inode/directory" ];
+    categories = [ "System" "FileManager" "FileTools" ];
+  };
+
+  # Where the LLM weights live. Must be readable by the (dynamic) llama-cpp user,
+  # which is why it is NOT under /home.
+  llamaModelDir = "/var/lib/llama-models";
+  llamaModel = "${llamaModelDir}/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf";
+
+
+  # tuigreet command line, split out of the greetd block for readability.
+  sessionDirs = config.services.displayManager.sessionData.desktops;
+  tuigreetCmd = lib.concatStringsSep " " [
+    "${pkgs.tuigreet}/bin/tuigreet"
+    "--sessions ${sessionDirs}/share/wayland-sessions"
+    "--xsessions ${sessionDirs}/share/xsessions"
+    "--remember"
+    "--remember-user-session"
+    "--user-menu"
+    "--user-menu-min-uid 1000"
+    "--asterisks"
+    "--power-shutdown 'shutdown -P now'"
+    "--power-reboot 'shutdown -r now'"
+  ];
+in
+{
+  # --- 2. IMPORTS ---
+  imports = [ ./hardware-configuration.nix ];
+
+  # --- 3. NIX & NIXPKGS ---
+  nixpkgs.config.allowUnfree = true;
+  nixpkgs.config.joypixels.acceptLicense = true;
+
+  nix.settings.auto-optimise-store = true;
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 30d";
+  };
+
+  # --- 4. BOOT ---
   boot.loader.systemd-boot = {
     enable = true;
-    configurationLimit = 20; # Set a limit on the number of generations to include in boot
+    configurationLimit = 20; # Keep at most 20 generations in the boot menu
   };
   boot.loader.efi.canTouchEfiVariables = true;
-  #boot.kernelParams = [ "kvm.enable_virt_at_load=0" ];
-  #boot.kernelPackages = pkgs.linuxPackages_latest; # Use bleeding-edge packages
-  boot.kernelPackages = pkgs.linuxPackages;
 
-  # --- NETWORKING ---
-  networking.hostName = "nixos"; 
-  networking.networkmanager.enable = true;
-  #networking.extraHosts = ''
-  #0.0.0.0 youtube.com
-  #0.0.0.0 www.youtube.com
-  #0.0.0.0 m.youtube.com
-  #0.0.0.0 youtu.be
-  #0.0.0.0 twitch.tv
-  #0.0.0.0 www.twitch.tv
-  #'';
+  boot.kernelPackages = pkgs.linuxPackages; # Default kernel (use pkgs.linuxPackages_latest for bleeding edge)
+  # If VirtualBox and KVM ever fight over virtualization extensions, try:
+  # boot.kernelParams = [ "kvm.enable_virt_at_load=0" ];
 
-  # --- HARDWARE & GRAPHICS ---
+  # --- 5. HARDWARE ---
+  hardware.enableRedistributableFirmware = true; # AMD GPU firmware + microcode source
   hardware.cpu.amd.updateMicrocode = true;
   hardware.graphics = {
     enable = true;
     enable32Bit = true;
   };
 
+  # --- 6. NETWORKING ---
+  networking.hostName = "nixos";
+  networking.networkmanager.enable = true;
 
-  # --- LOCALIZATION ---
+  # Uncomment to block distracting sites:
+  networking.extraHosts = ''
+    0.0.0.0 youtube.com
+    0.0.0.0 www.youtube.com
+    0.0.0.0 m.youtube.com
+    0.0.0.0 youtu.be
+    0.0.0.0 twitch.tv
+    0.0.0.0 www.twitch.tv
+    0.0.0.0 claude.ai
+  '';
+
+  # --- 7. LOCALIZATION ---
   time.timeZone = "Europe/Warsaw";
-  i18n = {
-  	defaultLocale = "en_US.UTF-8";
-  };
+  i18n.defaultLocale = "en_US.UTF-8";
 
   console.keyMap = "pl2";
   services.xserver.xkb = {
-      layout = "pl";
-      variant = "";
-      options = "caps:escape";
+    layout = "pl";
+    variant = "";
+    options = "caps:escape";
   };
 
-  # --- USER ACCOUNT ---
+  # --- 8. USERS ---
   users.users.dante = {
     isNormalUser = true;
     description = "dante";
-    extraGroups = [ "networkmanager" "wheel" "vboxusers" "kvm" ];
     shell = pkgs.zsh;
+    extraGroups = [
+      "networkmanager"
+      "wheel"
+      "vboxusers" # VirtualBox
+      "kvm"
+      "docker"    # NOTE: docker group is root-equivalent
+    ];
   };
 
-  # --- DISKS / AUTOMOUNT --- 
-
+  # --- 9. DISKS ---
+  # External exFAT USB drive, mounted on first access.
   fileSystems."/mnt/usb" = {
-  device = "/dev/disk/by-uuid/6A72-9D94";
-  fsType = "exfat";
-  options = [
-    "defaults"
-    "noatime"
-    "x-systemd.automount"
-    "x-systemd.device-timeout=5"
-    "noauto"
-  ];
+    device = "/dev/disk/by-uuid/6A72-9D94";
+    fsType = "exfat";
+    options = [
+      "defaults"
+      "noatime"
+      "nofail"                          # never block boot if the drive is absent
+      "noauto"
+      "x-systemd.automount"
+      "x-systemd.device-timeout=5"
+      "uid=1000"                        # exFAT has no permissions: make it owned by dante
+      "gid=100"
+      "umask=022"
+    ];
   };
+  services.udisks2.enable = true; # Needed to connect USB devices in calibre
 
-  # --- HYPRLAND & DESKTOP ---
+  # --- 10. DESKTOP ---
+
+  # Window manager
   programs.hyprland = {
     enable = true;
-    withUWSM = true; # recommended for most users
-    xwayland.enable = true; # Xwayland can be disabled.
+    withUWSM = true;
+    xwayland.enable = true;
+    # Explicit so the portal that gets installed is the one matching Hyprland
+    portalPackage = pkgs.xdg-desktop-portal-hyprland;
   };
 
+  # Login manager
+  services.greetd = {
+    enable = true;
+    useTextGreeter = true; # stops boot messages from drawing over the TUI
+    settings.default_session.command = tuigreetCmd;
+  };
 
-  # Screensharing & File Associations
+  # Portals (screensharing, file chooser, etc.)
+  # programs.hyprland already installs xdg-desktop-portal-hyprland; we only add gtk.
+  # Config is keyed on "hyprland" because XDG_CURRENT_DESKTOP=Hyprland takes
+  # precedence over "common". Screencast/screenshot go to hyprland, the rest to gtk.
   xdg.portal = {
     enable = true;
-    xdgOpenUsePortal = false; # Set to false to prevent browser file-picker crashes
+    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
     config = {
-      common = {
-        default = ["gtk"];
-        "org.freedesktop.impl.portal.FileChooser" = [ "gtk" ]; # Fixes folder opening issues
-      };
-      hyprland.default = ["gtk" "hyprland"];
+      common.default = [ "hyprland" "gtk" ];
+      hyprland.default = [ "hyprland" "gtk" ];
     };
-    extraPortals = with pkgs; [ xdg-desktop-portal-hyprland xdg-desktop-portal-gtk ];
   };
 
-  # --- SERVICES ---  
+  # Default applications
+  xdg.mime = {
+    enable = true;
+    defaultApplications = {
+      "x-scheme-handler/sgnl" = [ "signal.desktop" ];
+      "x-scheme-handler/signalcaptcha" = [ "signal.desktop" ];
+      "x-scheme-handler/discord" = [ "discord-ptb.desktop" ];
+      "x-scheme-handler/terminal" = [ "foot.desktop" ];
 
-  # Login Manager
+      "text/html" = [ "firefox.desktop" ];
+      "x-scheme-handler/http" = [ "firefox.desktop" ];
+      "x-scheme-handler/https" = [ "firefox.desktop" ];
+      "x-scheme-handler/about" = [ "firefox.desktop" ];
+      "x-scheme-handler/unknown" = [ "firefox.desktop" ];
 
-  services.greetd = {
-  enable = true;
-  settings.default_session.command = "${pkgs.tuigreet}/bin/tuigreet --xsessions ${config.services.displayManager.sessionData.desktops}/share/xsessions --sessions ${config.services.displayManager.sessionData.desktops}/share/wayland-sessions --remember --remember-user-session --user-menu --user-menu-min-uid 1000 --asterisks --power-shutdown 'shutdown -P now' --power-reboot 'shutdown -r now'";
+      "application/pdf" = [ "firefox.desktop" ];
+      "image/png" = [ "firefox.desktop" ];
+      "image/jpeg" = [ "firefox.desktop" ];
+      "image/gif" = [ "firefox.desktop" ];
+      "image/webp" = [ "firefox.desktop" ];
+      "image/bmp" = [ "firefox.desktop" ];
+
+      "application/lrf" = [ "calibre-lrfviewer.desktop" ];
+      "inode/directory" = [ "yazi-foot.desktop" ];
+    };
   };
 
-  # Enable sound with pipewire.
+  # Fonts
+  fonts.packages = with pkgs; [
+    # UI / text
+    noto-fonts
+    noto-fonts-cjk-sans
+    lato
+    liberation_ttf
+    open-sans
+    roboto
+    ubuntu-classic
+    corefonts
+    # Emoji / icons
+    noto-fonts-color-emoji
+    joypixels
+    font-awesome
+    # Monospace / coding
+    nerd-fonts.jetbrains-mono # the default monospace below needs the Nerd variant
+    jetbrains-mono
+    monaspace
+    anonymousPro
+    fira-code
+    fira-code-symbols
+  ];
+  fonts.fontconfig = {
+    enable = true;
+    defaultFonts.monospace = [ "JetBrainsMono Nerd Font Mono" ];
+  };
+
+  # --- 11. AUDIO ---
   security.rtkit.enable = true;
   services.pipewire = {
     enable = true;
@@ -114,160 +247,165 @@
     pulse.enable = true;
   };
 
-  # Syncthing
+  # --- 12. SERVICES ---
+
+  # File sync
   services.syncthing = {
     enable = true;
-    openDefaultPorts = true; 
+    openDefaultPorts = true;
     user = "dante";
+    group = "users";
+    dataDir = "/home/dante"; # default (/var/lib/syncthing) is wrong when running as dante
     configDir = "/home/dante/.config/syncthing";
   };
 
-  # Printing and drivers
-  services.printing.enable = true;
+  # Network service discovery (printers, etc.)
   services.avahi = {
     enable = true;
     nssmdns4 = true;
-    openFirewall = true; # Allows discovery through the firewall
+    openFirewall = true;
   };
 
-  services.udisks2.enable = true; # Needed to connect usb in calibre
+  # Printing: Brother HL-L2442DW
+  services.printing = {
+    enable = true;
+    drivers = with pkgs; [
+      brlaser              # open-source driver for Brother laser printers
+      brgenml1cupswrapper  # Brother's generic laser driver (fallback)
+    ];
+  };
 
-  
-  # --- PACKAGES ---
-  nixpkgs.config.allowUnfree = true;
+  # Optional: declare the printer so it doesn't have to be added through the web UI.
+  # Find the address in the printer's own menu (or your router), ideally reserve it in DHCP.
+  hardware.printers = {
+    ensurePrinters = [{
+      name = "Brother_HL-L2442DW";
+      deviceUri = "ipp://192.168.0.122/ipp/print";
+      model = "everywhere"; # driverless IPP; swap for a brlaser/Brother PPD if output is wrong
+    }];
+    ensureDefaultPrinter = "Brother_HL-L2442DW";
+  };
 
+  # --- 13. VIRTUALIZATION ---
+  virtualisation.virtualbox.host = {
+    enable = true;
+    # enableExtensionPack = true;
+    # enableKvm = true;
+    # addNetworkInterface = false;
+  };
+
+  virtualisation.docker.enable = true; # the package alone gave a CLI with no daemon
+
+  # --- 14. LOCAL LLM (llama.cpp, ROCm) ---
+  #   hf download unsloth/Qwen3.6-35B-A3B-GGUF Qwen3.6-35B-A3B-Q4_K_M.gguf --local-dir /var/lib/llama-models
+  services.llama-cpp = {
+    enable = true;
+    package = pkgs.llama-cpp-rocm;
+
+    model = llamaModel;
+    extraFlags = [
+      "--n-gpu-layers" "99"
+      "--n-cpu-moe" "99"
+      "--ctx-size" "65536"
+      "--flash-attn" "on"
+      "-ctk" "q4_0"
+      "-ctv" "q4_0"
+      "-t" "8"
+    ];
+  };
+
+  systemd.services.llama-cpp = {
+    # Don't crash-loop before the model has been downloaded.
+    unitConfig.ConditionPathExists = llamaModel;
+    # The service runs as a dynamic user; ROCm needs /dev/kfd and /dev/dri.
+    serviceConfig.SupplementaryGroups = [ "render" "video" ];
+  };
+
+  # Model directory: writable by dante (for downloads), readable by the service.
+  systemd.tmpfiles.rules = [
+    "d ${llamaModelDir} 0775 dante users - -"
+  ];
+
+  # --- 15. PROGRAMS ---
+  programs.zsh.enable = true;
+  programs.ssh.startAgent = true;
+  programs.htop.enable = true;
   programs.firefox.enable = true;
   programs.waybar.enable = true;
   programs.hyprlock.enable = true;
-  programs.htop.enable = true;
-  programs.zsh.enable = true;
-  programs.ssh.startAgent = true;
   programs.obs-studio.enable = true;
-  programs.winbox.enable = true;
-
-  # Virtualization
-  virtualisation.virtualbox.host = {
-    enable = true;
-    #enableExtensionPack = true;
-    #enableKvm = true;
-    #addNetworkInterface = false;
+  programs.nix-ld = {
+    enable = true; # run prebuilt binaries (uv/pip wheels, etc.)
+    libraries = with pkgs; [
+      stdenv.cc.cc.lib
+      zlib
+    ];
   };
 
-  environment.systemPackages = with pkgs; [
-     neovim # Text editor
-     keepassxc # Password manager
-     git # GITTTT
-     foot # Terminal
-     rofi # App launcher
-     yazi # File manager
-     mako # Notificaitons
-     wlogout # Logout Manager
-     hyprpolkitagent # Authentication agent for hyprland
-     stow # Manage dotfiles
-     signal-desktop # Encrypted messenger
-     pavucontrol # Audio manager
-     hyprshot # Screenshots on Hyprland
-     nwg-look # Cursors and looks
-     awww # Wallpapers
-     gnat15 # cpp utils
-     gdb # cpp debugger
-     obsidian #  Notes
-     libreoffice-qt-fresh # Office suite
-     gimp2-with-plugins # Image editing program
-     bibata-cursors # Cursors
-     calibre # Ebooks
-     p7zip # 7z
-     ffmpeg # converter
-     vlc # Video and audio player
-     hyprsunset
-     exiftool
-     qbittorrent
-     wl-clipboard
-     cliphist
-     lmstudio
-     llama-cpp-rocm
-     python313Packages.huggingface-hub
-     qt5.qtwayland
-     qt6.qtwayland
-     vscodium
-     nodejs
-  ];
+  # --- 16. SYSTEM PACKAGES ---
+  environment = {
+    localBinInPath = true;
+    systemPackages = with pkgs; [
+      # Hyprland ecosystem
+      foot # Terminal
+      rofi # App launcher
+      mako # Notifications
+      wlogout # Logout menu
+      hyprpolkitagent # Authentication agent
+      hyprshot # Screenshots
+      hyprsunset # Blue light filter
+      awww # Wallpapers
+      nwg-look # Cursors and looks
+      bibata-cursors # Cursor theme
+      wl-clipboard
+      cliphist # Clipboard history
+      qt5.qtwayland
+      qt6.qtwayland
 
-  xdg.mime = {
-    enable = true;
-    defaultApplications = {
-      "x-scheme-handler/sgnl" = [ "signal.desktop" ];
-      "x-scheme-handler/signalcaptcha" = [ "signal.desktop" ];
-      "x-scheme-handler/discord" = [ "legcord.desktop" ];
-      "text/html" = [ "firefox.desktop" ];
-      "x-scheme-handler/http" = [ "firefox.desktop" ];
-      "x-scheme-handler/https" = [ "firefox.desktop" ];
-      "x-scheme-handler/about" = [ "firefox.desktop" ];
-      "x-scheme-handler/unknown" = [ "firefox.desktop" ];
-      "application/lrf" = [ "calibre-lrfviewer.desktop" ];
-      "application/pdf" = [ "firefox.desktop" ];
-      "image/png" = [ "firefox.desktop" ];
-      "image/jpeg" = [ "firefox.desktop" ];
-      "image/gif" = [ "firefox.desktop" ];
-      "image/webp" = [ "firefox.desktop" ];
-      "image/bmp" = [ "firefox.desktop" ];
-      "inode/directory" = [ "yazi.desktop" ];
-      "x-scheme-handler/terminal" = [ "kitty.desktop" ];
-    };
+      # CLI & system tools
+      neovim # Text editor
+      git
+      stow # Dotfile manager
+      yazi # File manager
+      yaziFoot # Desktop entry: yazi inside foot (used for inode/directory)
+      p7zip # 7z
+      ffmpeg # Converter
+      exiftool
+      pavucontrol # Audio manager
+
+      # Development
+      vscodium
+      gcc # C/C++ compiler
+      gdb # Debugger
+      nodejs
+      uv # Python package/project manager
+
+      # AI / LLM
+      llama-cpp-rocm # CLI tools; the server itself runs as a service (section 14)
+      python3Packages.huggingface-hub # `hf` CLI for downloading models
+
+      # Apps
+      keepassxc # Password manager
+      signal-desktop # Encrypted messenger
+      discord-ptb
+      webex
+      obsidian # Notes
+      libreoffice-qt-fresh # Office suite
+      gimp2-with-plugins # Image editing
+      calibre # Ebooks
+      vlc # Video and audio player
+      qbittorrent
+    ];
   };
 
-   # --- FONTS ---
-
-  # Joypixels licence
-  nixpkgs.config.allowUnfreePredicate = pkg:
-  builtins.elem(lib.getName pkg) [
-    "joypixels"
-    "corefonts"
-  ];
-  nixpkgs.config.joypixels.acceptLicense = true;
-  
-  fonts.packages = with pkgs; [
-    noto-fonts 
-    noto-fonts-cjk-sans
-    noto-fonts-color-emoji
-    font-awesome 
-    joypixels
-    lato
-    liberation_ttf
-    open-sans
-    roboto
-    ubuntu-classic
-    jetbrains-mono 
-    monaspace 
-    anonymousPro 
-    fira-code 
-    fira-code-symbols 
-    corefonts
-  ];
-
-  fonts.fontconfig = {
-    enable = true;
-    defaultFonts.monospace = [ "JetBrainsMono Nerd Font Mono" ];
-  };
-  
-  # Nix settings
-  nix.gc = {
-    automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 30d";
-  };
-  nix.settings.auto-optimise-store = true;
-
-  # Enable auto-upgrades.
+  # --- 17. UPDATES & STATE VERSION ---
   system.autoUpgrade = {
     enable = true;
-    # Run daily
     dates = "daily";
-    # Build the new config and make it the default, but don't switch yet.  This will be picked up on reboot.  This helps
-    # prevent issues with OpenSnitch configs not well matching the state of the system.
+    # Build the new config and make it the boot default, but don't switch live;
+    # it takes effect on the next reboot, so a running session is never disturbed.
     operation = "boot";
   };
 
-  system.stateVersion = "25.11";
-
+  system.stateVersion = "25.11"; # Don't change after install
 }
