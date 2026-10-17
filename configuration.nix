@@ -304,13 +304,19 @@ in
 
     model = llamaModel;
     extraFlags = [
-      "--n-gpu-layers" "99"
+      "--n-gpu-layers" "all"
       "--n-cpu-moe" "99"
-      "--ctx-size" "65536"
+      "--ctx-size" "32768"
       "--flash-attn" "on"
       "-ctk" "q4_0"
       "-ctv" "q4_0"
       "-t" "8"
+      "--mmap"
+      "--mmproj" "${llamaModelDir}/mmproj-BF16.gguf"
+      "--cache-type-k" "q4_0"
+      "--cache-type-v" "q4_0"
+      "-b" "1024"
+      "-ub" "512"
     ];
   };
 
